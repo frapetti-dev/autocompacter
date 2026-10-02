@@ -43,6 +43,8 @@ omp -e ./extensions/autocompacter.ts
 
 Without `--global` a change applies to the current session only (stored in the session, restored on resume, branch, and tree navigation). With `--global` (or `-g`) it is written to the config file and applies to every session that has no override for that key.
 
+Shortcut: **`Alt+A`** toggles auto-compaction on/off for the current session. While it is on, the status line shows `🗜️ auto-compact @ 250K` (the trigger threshold).
+
 ### Config file
 
 `<agentDir>/config/autocompacter.json` — default `~/.omp/agent/config/autocompacter.json` (honors `PI_CODING_AGENT_DIR`):

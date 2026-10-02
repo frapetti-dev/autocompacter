@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Alt+A` shortcut toggles auto-compaction on/off for the current session (persisted as a session override, like `/autocompacter on|off`).
+- Status-line segment `🗜️ auto-compact @ <threshold>` while auto-compaction is on; cleared when off. Refreshed on every setting change and on session start/switch/branch/tree.
+
 ## [0.1.0] - 2026-10-02
 
 ### Added

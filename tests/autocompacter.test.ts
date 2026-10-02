@@ -25,6 +25,8 @@ type FakeHandler = (event: unknown, ctx: FakeCtx) => unknown;
 interface Harness {
 	handlers: Record<string, FakeHandler>;
 	commands: Record<string, { handler: (args: string, ctx: FakeCtx) => Promise<void>; getArgumentCompletions?: (p: string) => unknown }>;
+	shortcuts: Record<string, { handler: (ctx: FakeCtx) => void }>;
+	status: string | undefined;
 	appended: Array<[string, unknown]>;
 	branch: Array<Record<string, unknown>>;
 	notifies: Array<[string, string | undefined]>;
@@ -46,6 +48,8 @@ function makeHarness(opts: { configPath?: string; branch?: Array<Record<string, 
 		commands: {},
 		appended: [],
 		branch: opts.branch ?? [],
+		shortcuts: {},
+		status: undefined,
 		notifies: [],
 		compactCalls: [],
 		compactResult: Promise.resolve(),
@@ -60,6 +64,9 @@ function makeHarness(opts: { configPath?: string; branch?: Array<Record<string, 
 		registerCommand: (name: string, def: Harness["commands"][string]) => {
 			h.commands[name] = def;
 		},
+		registerShortcut: (key: string, def: Harness["shortcuts"][string]) => {
+			h.shortcuts[key] = def;
+		},
 		appendEntry: (customType: string, data: unknown) => {
 			h.appended.push([customType, data]);
 			h.branch.push({ type: "custom", customType, data });
@@ -71,7 +78,12 @@ function makeHarness(opts: { configPath?: string; branch?: Array<Record<string, 
 		},
 		getContextUsage: () => h.usage,
 		sessionManager: { getBranch: () => h.branch },
-		ui: { notify: (m: string, l?: string) => h.notifies.push([m, l]) },
+		ui: {
+			notify: (m: string, l?: string) => h.notifies.push([m, l]),
+			setStatus: (_key: string, text: string | undefined) => {
+				h.status = text;
+			},
+		},
 		hasUI: true,
 		compact: (o: unknown) => {
 			h.compactCalls.push(o);
@@ -119,6 +131,57 @@ describe("parseTokenCount", () => {
 describe("defaults", () => {
 	it("is off by default", async () => {
 		const h = makeHarness({ usage: usageOf(300_000) });
+		await end(h);
+		assert.equal(h.compactCalls.length, 0);
+	});
+});
+
+describe("status segment and shortcut", () => {
+	it("shows the trigger threshold when on and clears when off", async () => {
+		const h = makeHarness();
+		await start(h);
+		assert.equal(h.status, undefined);
+		await run(h, "on");
+		assert.match(h.status ?? "", /250K/);
+		await run(h, "threshold 400k");
+		assert.match(h.status ?? "", /400K/);
+		await run(h, "off");
+		assert.equal(h.status, undefined);
+	});
+	it("restores the segment from a persisted session override", async () => {
+		const first = makeHarness();
+		await run(first, "on");
+		const second = makeHarness({ branch: first.branch });
+		await start(second);
+		assert.match(second.status ?? "", /250K/);
+	});
+	it("global config enables the segment on session start", async () => {
+		const configPath = freshConfigPath();
+		await run(makeHarness({ configPath }), "on --global");
+		const h = makeHarness({ configPath });
+		await start(h);
+		assert.match(h.status ?? "", /250K/);
+	});
+	it("shortcut toggles the session setting, status and trigger", async () => {
+		const h = makeHarness({ usage: usageOf(300_000) });
+		h.shortcuts["alt+a"].handler(h.ctx);
+		assert.match(h.status ?? "", /250K/);
+		await end(h);
+		assert.equal(h.compactCalls.length, 1);
+		await tick();
+		h.shortcuts["alt+a"].handler(h.ctx);
+		assert.equal(h.status, undefined);
+		await end(h);
+		assert.equal(h.compactCalls.length, 1);
+		assert.deepEqual(h.appended.at(-1), [CUSTOM_TYPE, { enabled: false }]);
+	});
+	it("shortcut turns off a globally enabled setting for the session", async () => {
+		const configPath = freshConfigPath();
+		await run(makeHarness({ configPath }), "on --global");
+		const h = makeHarness({ configPath });
+		await start(h);
+		h.shortcuts["alt+a"].handler(h.ctx);
+		assert.equal(h.status, undefined);
 		await end(h);
 		assert.equal(h.compactCalls.length, 0);
 	});

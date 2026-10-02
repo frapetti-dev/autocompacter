@@ -26,6 +26,8 @@ export const USAGE =
 
 const SETTING_KEYS = ["enabled", "thresholdTokens", "type"] as const;
 const PREFIX = "🗜️ autocompacter:";
+const STATUS_KEY = "frapetti-dev.autocompacter";
+export const TOGGLE_SHORTCUT = "alt+a";
 
 export type ParsedCommand =
 	| { action: "status" }
@@ -49,6 +51,11 @@ export function formatTokens(n: number): string {
 	if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M`;
 	if (n >= 1e3) return `${(n / 1e3).toFixed(1).replace(/\.0$/, "")}K`;
 	return String(Math.round(n));
+}
+
+/** Status-line text, or `undefined` (clears the segment) when auto-compaction is off. */
+export function formatStatus(s: Settings): string | undefined {
+	return s.enabled ? `🗜️ auto-compact @ ${formatTokens(s.thresholdTokens)}` : undefined;
 }
 
 export function validateOverride(raw: unknown): { override: SettingsOverride; problems: string[] } {
@@ -195,12 +202,25 @@ export default function autocompacter(pi: ExtensionAPI, deps: { configPath?: str
 		return "default";
 	}
 
-	pi.on("session_switch", (_e, ctx) => restoreSession(ctx));
-	pi.on("session_branch", (_e, ctx) => restoreSession(ctx));
-	pi.on("session_tree", (_e, ctx) => restoreSession(ctx));
+	function updateStatus(ctx: ExtensionContext): void {
+		try {
+			ctx.ui.setStatus(STATUS_KEY, formatStatus(resolveSettings(globalOverride, sessionOverride)));
+		} catch {
+			// status is cosmetic; never let it break a handler
+		}
+	}
+
+	function restoreAndRefresh(ctx: ExtensionContext): void {
+		restoreSession(ctx);
+		updateStatus(ctx);
+	}
+
+	pi.on("session_switch", (_e, ctx) => restoreAndRefresh(ctx));
+	pi.on("session_branch", (_e, ctx) => restoreAndRefresh(ctx));
+	pi.on("session_tree", (_e, ctx) => restoreAndRefresh(ctx));
 	pi.on("session_start", (_e: unknown, ctx: ExtensionContext) => {
 		loadGlobal();
-		restoreSession(ctx);
+		restoreAndRefresh(ctx);
 		if (pendingConfigWarning) {
 			ctx.ui.notify(pendingConfigWarning, "warning");
 			pendingConfigWarning = undefined;
@@ -287,6 +307,7 @@ export default function autocompacter(pi: ExtensionAPI, deps: { configPath?: str
 				if (cmd.global && SETTING_KEYS.some((k) => k in cmd.patch && k in sessionOverride)) {
 					msg += " — note: a session override still applies (/autocompacter reset)";
 				}
+				updateStatus(ctx);
 				ctx.ui.notify(msg, "info");
 				return;
 			}
@@ -305,6 +326,22 @@ export default function autocompacter(pi: ExtensionAPI, deps: { configPath?: str
 				pi.appendEntry(CUSTOM_TYPE, {});
 				ctx.ui.notify(`${PREFIX} session overrides cleared`, "info");
 			}
+			updateStatus(ctx);
+		},
+	});
+
+	// ----------------------------------------------------------------------
+	// Shortcut
+	// ----------------------------------------------------------------------
+
+	pi.registerShortcut(TOGGLE_SHORTCUT, {
+		description: "Toggle autocompacter on/off for this session",
+		handler(ctx: ExtensionContext) {
+			const next = !resolveSettings(globalOverride, sessionOverride).enabled;
+			sessionOverride = { ...sessionOverride, enabled: next };
+			pi.appendEntry(CUSTOM_TYPE, sessionOverride);
+			updateStatus(ctx);
+			ctx.ui.notify(`${PREFIX} ${next ? "on" : "off"} (session)`, "info");
 		},
 	});
 

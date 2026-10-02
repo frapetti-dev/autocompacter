@@ -29,6 +29,8 @@ One file, `extensions/autocompacter.ts`; no `src/`, no build step (TypeScript is
 
 **Command:** `pi.registerCommand("autocompacter", …)` with `getArgumentCompletions(prefix)` (items `{ value, label, description? }`; `type <t>` / `threshold <n>` prefixes get specific lists, otherwise the first-word list; `null` when nothing matches). Actions: `status`, `on`/`off`, `threshold <x>`, `type <t>`, `reset`, each optionally `--global`. A global set that is shadowed by a session override appends a "session override still applies" note.
 
+**Shortcut & status segment:** `pi.registerShortcut(TOGGLE_SHORTCUT = "alt+a", …)` flips `enabled` as a *session* override (appends the full snapshot). `updateStatus(ctx)` calls `ctx.ui.setStatus(STATUS_KEY, formatStatus(settings))` — text `🗜️ auto-compact @ <threshold>` when on, `undefined` (clears) when off. It runs after every command/shortcut change and on `session_start`/`_switch`/`_branch`/`_tree`; wrapped in try/catch because the status is cosmetic. Avoid host-reserved chords (`runner.ts` `#RESERVED_SHORTCUTS`: ctrl+c/d/z/k/p/l/o/t/g/q, alt+m, …).
+
 ## Key Directories
 
 | Path | Purpose |
