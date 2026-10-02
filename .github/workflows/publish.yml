@@ -1,0 +1,77 @@
+# Publish trigger: GitHub Release (published) or manual workflow_dispatch (tag input).
+# Publishes @frapetti-dev/autocompacter to the GitHub Package Registry (npm.pkg.github.com),
+# authenticated with the workflow's own GITHUB_TOKEN (packages: write) — no external
+# registry account or trusted-publisher setup required.
+
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to publish, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: gpr-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: "@frapetti-dev"
+          cache: pnpm
+
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          package_version=$(node -p 'require("./package.json").version')
+          expected_tag="v${package_version}"
+          if [ "$RELEASE_TAG" != "$expected_tag" ]; then
+            echo "::error::release tag ($RELEASE_TAG) != package.json version ($expected_tag)"
+            exit 1
+          fi
+          tag_commit=$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")
+          head_commit=$(git rev-parse HEAD)
+          if [ "$tag_commit" != "$head_commit" ]; then
+            echo "::error::checked-out commit ($head_commit) != tag $RELEASE_TAG ($tag_commit)"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify (typecheck + tests)
+        run: |
+          pnpm typecheck
+          pnpm test
+
+      - name: Validate package contents
+        run: pnpm publish --dry-run --no-git-checks
+
+      - name: Publish to GitHub Packages
+        run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

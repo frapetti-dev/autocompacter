@@ -1,0 +1,57 @@
+{
+  "name": "@frapetti-dev/autocompacter",
+  "version": "0.1.0",
+  "description": "omp extension: compact the session automatically when context crosses a token threshold",
+  "author": "frapetti-dev (https://github.com/frapetti-dev)",
+  "type": "module",
+  "main": "extensions/autocompacter.ts",
+  "files": [
+    "extensions/autocompacter.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "omp",
+    "oh-my-pi",
+    "omp-extension",
+    "pi-package",
+    "extension",
+    "compaction",
+    "auto-compact",
+    "context-window"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frapetti-dev/autocompacter.git"
+  },
+  "homepage": "https://github.com/frapetti-dev/autocompacter#readme",
+  "bugs": "https://github.com/frapetti-dev/autocompacter/issues",
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "omp": {
+    "extensions": [
+      "./extensions/autocompacter.ts"
+    ]
+  },
+  "packageManager": "pnpm@11.15.1",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test tests/autocompacter.test.ts",
+    "smoke": "node scripts/smoke-rpc.ts"
+  },
+  "peerDependencies": {
+    "@oh-my-pi/pi-coding-agent": ">=18.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@oh-my-pi/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@oh-my-pi/pi-coding-agent": "18.4.10",
+    "@types/node": "^24.19.0",
+    "typescript": "^7.0.2"
+  }
+}
